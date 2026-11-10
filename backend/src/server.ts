@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+
 import { ENV } from "./config/env.js";
 import { connectDB, disconnectDB } from "./config/db.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -22,18 +23,33 @@ const app = express();
 
 // Security and utility middleware
 app.use(helmet());
+
 app.use(
   cors({
-    origin: ["http://localhost:3000"],
+    origin: ["http://localhost:3000", ENV.CORS_ORIGIN],
     credentials: true,
   }),
 );
+
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Production database initialization.
+// Vercel handles the HTTP server automatically.
+if (process.env.VERCEL === "1") {
+  app.use(async (_req, _res, next) => {
+    try {
+      await connectDB();
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
+}
+
 // Health Check
-app.get("/health", (req, res) => {
+app.get("/health", (_req, res) => {
   res.status(200).json({
     status: "HEALTHY",
     service: "Predictive Warehouse Stockout & Reordering Agent API",
@@ -41,8 +57,8 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Root route (fixes "Cannot GET /")
-app.get("/", (req, res) => {
+// Root route
+app.get("/", (_req, res) => {
   res.status(200).json({
     message: "Warehouse Stockout Agent API is running 🚀",
     health: "/health",
@@ -50,7 +66,7 @@ app.get("/", (req, res) => {
   });
 });
 
-// Mount API routes
+// API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/inventory", inventoryRoutes);
@@ -63,7 +79,7 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/warehouses", warehouseRoutes);
 app.use("/api/notifications", notificationRoutes);
 
-// 404 handler for unknown routes (optional but recommended)
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -71,49 +87,52 @@ app.use((req, res) => {
   });
 });
 
-// Centralized error handling (must stay last)
+// Centralized error handling
 app.use(errorHandler);
 
+// Local development startup
 async function startServer() {
   try {
     await connectDB();
 
-    // Auto-seed if database is empty
     const { Product } = await import("./models/Product.js");
     const prodCount = await Product.countDocuments();
+
     if (prodCount === 0) {
-      console.log(
-        "[Startup] Empty database detected. Auto-seeding initial warehouse datasets...",
-      );
+      console.log("[Startup] Empty database detected. Seeding...");
+
       const { seedDatabase } = await import("./jobs/seed.js");
       await seedDatabase();
     }
 
     const server = app.listen(ENV.PORT, () => {
-      console.log(`=======================================================`);
-      console.log(`🚀 Warehouse Stockout Agent Backend Server is running!`);
-      console.log(`📡 URL: http://localhost:${ENV.PORT}`);
-      console.log(`🌍 Environment: ${ENV.NODE_ENV}`);
-      console.log(`=======================================================`);
+      console.log("==============================================");
+      console.log("Warehouse Stockout Agent Backend is running!");
+      console.log(`URL: http://localhost:${ENV.PORT}`);
+      console.log(`Environment: ${ENV.NODE_ENV}`);
+      console.log("==============================================");
     });
 
     const shutdown = async () => {
-      console.log("\nShutting down server gracefully...");
+      console.log("Shutting down server...");
+
       server.close(async () => {
         await disconnectDB();
-        console.log("Database disconnected. Process exiting.");
         process.exit(0);
       });
     };
 
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
-  } catch (err: any) {
-    console.error("Fatal error during server initialization:", err);
+  } catch (error) {
+    console.error("Fatal server initialization error:", error);
     process.exit(1);
   }
 }
 
-startServer();
+// Start a traditional server only during local development.
+if (process.env.VERCEL !== "1") {
+  startServer();
+}
 
 export default app;
