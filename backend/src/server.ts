@@ -18,6 +18,7 @@ import dashboardRoutes from "./routes/dashboardRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import warehouseRoutes from "./routes/warehouseRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import onboardingRoutes from "./routes/onboarding";
 
 const app = express();
 
@@ -78,6 +79,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/warehouses", warehouseRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/onboarding", onboardingRoutes);
 
 // 404 handler
 app.use((req, res) => {

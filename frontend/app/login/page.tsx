@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '../../context/AuthContext';
-import { Package, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
-import Link from 'next/link';
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "../../context/AuthContext";
+import { Package, Lock, Mail, ArrowRight, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const [email, setEmail] = useState('manager@warehouse.local');
-  const [password, setPassword] = useState('ManagerPass123!');
+  const [email, setEmail] = useState("manager@warehouse.local");
+  const [password, setPassword] = useState("ManagerPass123!");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -21,9 +21,12 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      router.push('/');
+      router.push("/");
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed. Please check credentials.');
+      setError(
+        err.response?.data?.message ||
+          "Login failed. Please check credentials.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -43,8 +46,12 @@ export default function LoginPage() {
           <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white mx-auto shadow-lg shadow-blue-500/30 mb-4">
             <Package className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Warehouse Intel Agent</h1>
-          <p className="text-xs text-slate-500 mt-1">Predictive Stockout & Automated Reordering Portal</p>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            Warehouse Intel Agent
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Predictive Stockout & Automated Reordering Portal
+          </p>
         </div>
 
         {error && (
@@ -55,7 +62,9 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Email Address</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Email Address
+            </label>
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               <input
@@ -70,7 +79,9 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Password</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Password
+            </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               <input
@@ -89,7 +100,9 @@ export default function LoginPage() {
             disabled={isLoading}
             className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 transition disabled:opacity-50 mt-2"
           >
-            <span>{isLoading ? 'Authenticating...' : 'Sign In to Dashboard'}</span>
+            <span>
+              {isLoading ? "Authenticating..." : "Sign In to Dashboard"}
+            </span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </form>
@@ -103,21 +116,23 @@ export default function LoginPage() {
           <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
-              onClick={() => fillDemo('admin@warehouse.local', 'AdminPass123!')}
+              onClick={() => fillDemo("admin@warehouse.local", "AdminPass123!")}
               className="px-2.5 py-2 text-[11px] font-medium bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 text-center transition"
             >
               Admin
             </button>
             <button
               type="button"
-              onClick={() => fillDemo('manager@warehouse.local', 'ManagerPass123!')}
+              onClick={() =>
+                fillDemo("manager@warehouse.local", "ManagerPass123!")
+              }
               className="px-2.5 py-2 text-[11px] font-medium bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-blue-700 text-center transition"
             >
               Manager
             </button>
             <button
               type="button"
-              onClick={() => fillDemo('staff@warehouse.local', 'StaffPass123!')}
+              onClick={() => fillDemo("staff@warehouse.local", "StaffPass123!")}
               className="px-2.5 py-2 text-[11px] font-medium bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 text-center transition"
             >
               Staff
@@ -126,9 +141,22 @@ export default function LoginPage() {
         </div>
 
         <div className="mt-6 text-center text-xs text-slate-500">
-          Need a new warehouse staff account?{' '}
-          <Link href="/register" className="text-blue-600 font-semibold hover:underline">
+          Need a new warehouse staff account?{" "}
+          <Link
+            href="/register"
+            className="text-blue-600 font-semibold hover:underline"
+          >
             Register here
+          </Link>
+        </div>
+
+        <div className="mt-3 text-center text-xs text-slate-500">
+          New customer?{" "}
+          <Link
+            href="/onboarding"
+            className="text-blue-600 font-semibold hover:underline"
+          >
+            Get started
           </Link>
         </div>
       </div>
