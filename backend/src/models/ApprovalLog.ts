@@ -6,6 +6,9 @@ export type ApprovalAction =
   | 'APPROVED'
   | 'REJECTED'
   | 'SUBMITTED_TO_SUPPLIER'
+  | 'VENDOR_ACCEPTED' // NEW
+  | 'VENDOR_REJECTED' // NEW
+  | 'VENDOR_SHIPPED'  // NEW
   | 'STATUS_CHANGE';
 
 export interface IApprovalLog extends Document {
@@ -37,6 +40,9 @@ const ApprovalLogSchema = new Schema<IApprovalLog>(
         'APPROVED',
         'REJECTED',
         'SUBMITTED_TO_SUPPLIER',
+        'VENDOR_ACCEPTED', // NEW
+        'VENDOR_REJECTED', // NEW
+        'VENDOR_SHIPPED',  // NEW
         'STATUS_CHANGE',
       ],
       required: true,

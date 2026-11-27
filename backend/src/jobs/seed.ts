@@ -1,26 +1,27 @@
-import mongoose from 'mongoose';
-import { connectDB, disconnectDB } from '../config/db.js';
-import { User } from '../models/User.js';
-import { Warehouse } from '../models/Warehouse.js';
-import { Supplier } from '../models/Supplier.js';
-import { Product } from '../models/Product.js';
-import { InventoryMovement } from '../models/InventoryMovement.js';
-import { DemandHistory } from '../models/DemandHistory.js';
-import { PurchaseOrder } from '../models/PurchaseOrder.js';
-import { ApprovalLog } from '../models/ApprovalLog.js';
-import { Notification } from '../models/Notification.js';
-import { StockoutRisk } from '../models/StockoutRisk.js';
-import { Forecast } from '../models/Forecast.js';
-import { StockoutService } from '../services/stockoutService.js';
-import { ForecastingService } from '../services/forecastingService.js';
-import { subDays, addDays } from 'date-fns';
+import mongoose from "mongoose";
+import { connectDB, disconnectDB } from "../config/db.js";
+import { User } from "../models/User.js";
+import { Warehouse } from "../models/Warehouse.js";
+import { Supplier } from "../models/Supplier.js";
+import { Product } from "../models/Product.js";
+import { InventoryMovement } from "../models/InventoryMovement.js";
+import { DemandHistory } from "../models/DemandHistory.js";
+import { PurchaseOrder } from "../models/PurchaseOrder.js";
+import { ApprovalLog } from "../models/ApprovalLog.js";
+import { Notification } from "../models/Notification.js";
+import { StockoutRisk } from "../models/StockoutRisk.js";
+import { Forecast } from "../models/Forecast.js";
+import OnboardingRequest from "../models/OnboardingRequest.js"; // NEW
+import { StockoutService } from "../services/stockoutService.js";
+import { ForecastingService } from "../services/forecastingService.js";
+import { subDays, addDays } from "date-fns";
 
 export async function seedDatabase() {
-  console.log('--- Starting Warehouse Database Seeding ---');
+  console.log("--- Starting Warehouse Database Seeding ---");
   await connectDB();
 
   // Clear existing data
-  console.log('Clearing existing collections...');
+  console.log("Clearing existing collections...");
   await Promise.all([
     User.deleteMany({}),
     Warehouse.deleteMany({}),
@@ -33,57 +34,66 @@ export async function seedDatabase() {
     Notification.deleteMany({}),
     StockoutRisk.deleteMany({}),
     Forecast.deleteMany({}),
+    OnboardingRequest.deleteMany({ email: "customer@warehouse.local" }), // NEW: removes only the demo request, not real leads
   ]);
 
   // 1. Seed Users
-  console.log('Seeding demo users across roles...');
+  console.log("Seeding demo users across roles...");
   const users = await User.create([
     {
-      name: 'Elena Rostova (Admin)',
-      email: 'admin@warehouse.local',
-      password: 'AdminPass123!',
-      role: 'Admin',
-      department: 'Executive Supply Chain',
+      name: "Elena Rostova (Admin)",
+      email: "admin@warehouse.local",
+      password: "AdminPass123!",
+      role: "Admin",
+      department: "Executive Supply Chain",
     },
     {
-      name: 'Marcus Vance (Manager)',
-      email: 'manager@warehouse.local',
-      password: 'ManagerPass123!',
-      role: 'Warehouse Manager',
-      department: 'Warehouse Fulfillment Operations',
+      name: "Marcus Vance (Manager)",
+      email: "manager@warehouse.local",
+      password: "ManagerPass123!",
+      role: "Warehouse Manager",
+      department: "Warehouse Fulfillment Operations",
     },
     {
-      name: 'Sarah Chen (Staff)',
-      email: 'staff@warehouse.local',
-      password: 'StaffPass123!',
-      role: 'Inventory Staff',
-      department: 'Receiving & Staging',
+      name: "Sarah Chen (Staff)",
+      email: "staff@warehouse.local",
+      password: "StaffPass123!",
+      role: "Inventory Staff",
+      department: "Receiving & Staging",
+    },
+    // NEW: Super Admin
+    {
+      name: "Rohan Mehta (Super Admin)",
+      email: "superadmin@warehouse.local",
+      password: process.env.SEED_SUPERADMIN_PASSWORD || "SuperAdminPass123!",
+      role: "Super Admin",
+      department: "Platform Administration",
     },
   ]);
 
-  const [adminUser, managerUser, staffUser] = users;
+  const [adminUser, managerUser, staffUser, superAdminUser] = users; // CHANGED: added superAdminUser
 
   // 2. Seed 3 Warehouses
-  console.log('Seeding 3 regional warehouses...');
+  console.log("Seeding 3 regional warehouses...");
   const warehouses = await Warehouse.create([
     {
-      name: 'Midwest Central Distribution Center',
-      code: 'WH-CHI-01',
-      location: 'Chicago, IL',
+      name: "Midwest Central Distribution Center",
+      code: "WH-CHI-01",
+      location: "Chicago, IL",
       capacity: 50000,
       active: true,
     },
     {
-      name: 'Pacific Northwest Logistics Hub',
-      code: 'WH-SEA-02',
-      location: 'Seattle, WA',
+      name: "Pacific Northwest Logistics Hub",
+      code: "WH-SEA-02",
+      location: "Seattle, WA",
       capacity: 35000,
       active: true,
     },
     {
-      name: 'Southeast Automated Cross-Dock',
-      code: 'WH-ATL-03',
-      location: 'Atlanta, GA',
+      name: "Southeast Automated Cross-Dock",
+      code: "WH-ATL-03",
+      location: "Atlanta, GA",
       capacity: 45000,
       active: true,
     },
@@ -92,86 +102,145 @@ export async function seedDatabase() {
   const [wh1, wh2, wh3] = warehouses;
 
   // 3. Seed 5 Suppliers
-  console.log('Seeding 5 industrial suppliers...');
+  console.log("Seeding 5 industrial suppliers...");
   const suppliers = await Supplier.create([
     {
-      name: 'Apex Industrial Technologies',
-      email: 'orders@apexindustrial.com',
-      phone: '+1 (555) 234-8901',
-      address: '1420 Manufacturing Pkwy, Cleveland, OH',
+      name: "Apex Industrial Technologies",
+      email: "orders@apexindustrial.com",
+      phone: "+1 (555) 234-8901",
+      address: "1420 Manufacturing Pkwy, Cleveland, OH",
       approved: true,
       active: true,
       leadTimeDays: 4,
       reliabilityScore: 96,
-      supportedCategories: ['Industrial Hardware', 'Bearings & Motion', 'Hydraulics'],
+      supportedCategories: [
+        "Industrial Hardware",
+        "Bearings & Motion",
+        "Hydraulics",
+      ],
       rating: 4.9,
-      notes: 'Tier 1 strategic vendor. Consistently delivers within 4 days with 99% order accuracy.',
+      notes:
+        "Tier 1 strategic vendor. Consistently delivers within 4 days with 99% order accuracy.",
     },
     {
-      name: 'Global Packaging Solutions LLC',
-      email: 'b2b@globalpackcorp.com',
-      phone: '+1 (555) 432-1100',
-      address: '880 Logistics Blvd, Dallas, TX',
+      name: "Global Packaging Solutions LLC",
+      email: "b2b@globalpackcorp.com",
+      phone: "+1 (555) 432-1100",
+      address: "880 Logistics Blvd, Dallas, TX",
       approved: true,
       active: true,
       leadTimeDays: 3,
       reliabilityScore: 94,
-      supportedCategories: ['Packaging & Shipping', 'Material Handling'],
+      supportedCategories: ["Packaging & Shipping", "Material Handling"],
       rating: 4.8,
-      notes: 'Primary supplier for corrugated cartons, heavy-duty strapping, and thermal stretch film.',
+      notes:
+        "Primary supplier for corrugated cartons, heavy-duty strapping, and thermal stretch film.",
     },
     {
-      name: 'Precision Dynamics Sensors',
-      email: 'procurement@precisiondyn.com',
-      phone: '+1 (555) 678-4321',
-      address: '320 Tech Way, San Jose, CA',
+      name: "Precision Dynamics Sensors",
+      email: "procurement@precisiondyn.com",
+      phone: "+1 (555) 678-4321",
+      address: "320 Tech Way, San Jose, CA",
       approved: true,
       active: true,
       leadTimeDays: 7,
       reliabilityScore: 91,
-      supportedCategories: ['Electronics & Sensors', 'Automation & Robotics'],
+      supportedCategories: ["Electronics & Sensors", "Automation & Robotics"],
       rating: 4.6,
-      notes: 'High-precision photoelectric and barcode vision sensors with moderate lead times.',
+      notes:
+        "High-precision photoelectric and barcode vision sensors with moderate lead times.",
     },
     {
-      name: 'Vanguard Safety & PPE Supplies',
-      email: 'dispatch@vanguardsafety.com',
-      phone: '+1 (555) 890-5678',
-      address: '500 Harbor Drive, Baltimore, MD',
+      name: "Vanguard Safety & PPE Supplies",
+      email: "dispatch@vanguardsafety.com",
+      phone: "+1 (555) 890-5678",
+      address: "500 Harbor Drive, Baltimore, MD",
       approved: true,
       active: true,
       leadTimeDays: 2,
       reliabilityScore: 98,
-      supportedCategories: ['Safety & PPE', 'Sanitation & Maintenance'],
+      supportedCategories: ["Safety & PPE", "Sanitation & Maintenance"],
       rating: 4.9,
-      notes: 'Rapid local courier dispatch. High priority safety compliance partner.',
+      notes:
+        "Rapid local courier dispatch. High priority safety compliance partner.",
     },
     {
-      name: 'Kodiak Heavy Duty Fasteners',
-      email: 'sales@kodiakfasteners.com',
-      phone: '+1 (555) 765-4321',
-      address: '912 Steel Road, Pittsburgh, PA',
+      name: "Kodiak Heavy Duty Fasteners",
+      email: "sales@kodiakfasteners.com",
+      phone: "+1 (555) 765-4321",
+      address: "912 Steel Road, Pittsburgh, PA",
       approved: false, // Testing unapproved supplier scenario
       active: true,
       leadTimeDays: 6,
       reliabilityScore: 78,
-      supportedCategories: ['Industrial Hardware'],
+      supportedCategories: ["Industrial Hardware"],
       rating: 3.8,
-      notes: 'Pending quality management audit. Not yet authorized for automated purchase orders.',
+      notes:
+        "Pending quality management audit. Not yet authorized for automated purchase orders.",
     },
   ]);
 
   const [supApex, supPack, supSensors, supSafety, supKodiak] = suppliers;
 
+  // NEW: Vendor and Customer demo accounts.
+  // They are created here (after the suppliers) because a Vendor user must be linked to a supplier
+  // and a Customer user to an onboarding request.
+  console.log("Seeding vendor and customer demo accounts...");
+
+  const demoCustomerRequest = await OnboardingRequest.create({
+    companyName: "Northwind Retail Group",
+    industry: "Retail & E-commerce",
+    warehouses: 3,
+    country: "United States",
+    fullName: "Priya Nair",
+    email: "customer@warehouse.local",
+    phone: "+1 (555) 100-2000",
+    role: "Head of Supply Chain",
+    skuCount: "1,000-5,000",
+    reorderPolicy: "Automated",
+    status: "active",
+    activatedBy: superAdminUser._id,
+    activatedAt: new Date(),
+  });
+
+  const vendorUser = await User.create({
+    name: "Apex Industrial (Vendor)",
+    email: "vendor@warehouse.local",
+    password: "VendorPass123!",
+    role: "Vendor",
+    department: "Vendor Portal",
+    supplierId: supApex._id,
+  });
+
+  const customerUser = await User.create({
+    name: "Priya Nair (Customer)",
+    email: "customer@warehouse.local",
+    password: "CustomerPass123!",
+    role: "Customer",
+    department: "Customer Portal",
+    customerId: demoCustomerRequest._id,
+  });
+
+  // Link the logins back to their records
+  await Supplier.findByIdAndUpdate(supApex._id, {
+    userId: vendorUser._id,
+    approvedBy: superAdminUser._id,
+    approvedAt: new Date(),
+  });
+  await OnboardingRequest.findByIdAndUpdate(demoCustomerRequest._id, {
+    userId: customerUser._id,
+  });
+
   // 4. Seed 20 Realistic Warehouse Products
-  console.log('Seeding 20 realistic warehouse products...');
+  console.log("Seeding 20 realistic warehouse products...");
   const productsData = [
     // CRITICAL STOCKOUT RISKS (Very low stock, high daily demand)
     {
-      name: 'Heavy Duty Poly Bubble Mailers (10.5x16 in)',
-      sku: 'PKG-MLR-001',
-      description: 'Water-resistant self-sealing padded envelopes for ecommerce distribution.',
-      category: 'Packaging & Shipping',
+      name: "Heavy Duty Poly Bubble Mailers (10.5x16 in)",
+      sku: "PKG-MLR-001",
+      description:
+        "Water-resistant self-sealing padded envelopes for ecommerce distribution.",
+      category: "Packaging & Shipping",
       currentStock: 12,
       minimumStock: 40,
       reorderPoint: 70,
@@ -181,13 +250,14 @@ export async function seedDatabase() {
       supplierIds: [supPack._id],
       averageDailyDemand: 18,
       leadTimeDays: 3,
-      unitOfMeasure: 'Cases (100ct)',
+      unitOfMeasure: "Cases (100ct)",
     },
     {
-      name: 'Nitrile Industrial Exam Gloves (Large, 5mil)',
-      sku: 'PPE-GLV-002',
-      description: 'Textured grip powder-free chemical resistant nitrile gloves.',
-      category: 'Safety & PPE',
+      name: "Nitrile Industrial Exam Gloves (Large, 5mil)",
+      sku: "PPE-GLV-002",
+      description:
+        "Textured grip powder-free chemical resistant nitrile gloves.",
+      category: "Safety & PPE",
       currentStock: 8,
       minimumStock: 25,
       reorderPoint: 50,
@@ -197,13 +267,14 @@ export async function seedDatabase() {
       supplierIds: [supSafety._id],
       averageDailyDemand: 9,
       leadTimeDays: 2,
-      unitOfMeasure: 'Boxes (100ct)',
+      unitOfMeasure: "Boxes (100ct)",
     },
     {
-      name: 'High-Torque Flange Ball Bearing (6205-2RS)',
-      sku: 'BRG-6205-003',
-      description: 'Double rubber sealed deep groove industrial electric motor bearing.',
-      category: 'Bearings & Motion',
+      name: "High-Torque Flange Ball Bearing (6205-2RS)",
+      sku: "BRG-6205-003",
+      description:
+        "Double rubber sealed deep groove industrial electric motor bearing.",
+      category: "Bearings & Motion",
       currentStock: 5,
       minimumStock: 15,
       reorderPoint: 35,
@@ -213,15 +284,15 @@ export async function seedDatabase() {
       supplierIds: [supApex._id],
       averageDailyDemand: 6,
       leadTimeDays: 4,
-      unitOfMeasure: 'Units',
+      unitOfMeasure: "Units",
     },
 
     // HIGH STOCKOUT RISKS (Stock below or near reorder point)
     {
-      name: 'Thermal Transfer Shipping Labels 4x6 (Roll of 1000)',
-      sku: 'PKG-LBL-004',
-      description: 'Fanfold direct thermal barcode printable shipping labels.',
-      category: 'Packaging & Shipping',
+      name: "Thermal Transfer Shipping Labels 4x6 (Roll of 1000)",
+      sku: "PKG-LBL-004",
+      description: "Fanfold direct thermal barcode printable shipping labels.",
+      category: "Packaging & Shipping",
       currentStock: 35,
       minimumStock: 25,
       reorderPoint: 60,
@@ -231,13 +302,14 @@ export async function seedDatabase() {
       supplierIds: [supPack._id],
       averageDailyDemand: 8,
       leadTimeDays: 3,
-      unitOfMeasure: 'Rolls',
+      unitOfMeasure: "Rolls",
     },
     {
-      name: 'Photoelectric Retroreflective Sensor (10m range)',
-      sku: 'AUT-SEN-005',
-      description: 'Optical conveyor detection sensor with adjustable sensitivity.',
-      category: 'Electronics & Sensors',
+      name: "Photoelectric Retroreflective Sensor (10m range)",
+      sku: "AUT-SEN-005",
+      description:
+        "Optical conveyor detection sensor with adjustable sensitivity.",
+      category: "Electronics & Sensors",
       currentStock: 14,
       minimumStock: 10,
       reorderPoint: 25,
@@ -247,13 +319,13 @@ export async function seedDatabase() {
       supplierIds: [supSensors._id],
       averageDailyDemand: 3,
       leadTimeDays: 7,
-      unitOfMeasure: 'Units',
+      unitOfMeasure: "Units",
     },
     {
-      name: 'Reinforced Kraft Paper Water-Activated Tape',
-      sku: 'PKG-TPE-006',
-      description: 'Filament-reinforced heavy-duty carton sealing gummed tape.',
-      category: 'Packaging & Shipping',
+      name: "Reinforced Kraft Paper Water-Activated Tape",
+      sku: "PKG-TPE-006",
+      description: "Filament-reinforced heavy-duty carton sealing gummed tape.",
+      category: "Packaging & Shipping",
       currentStock: 28,
       minimumStock: 20,
       reorderPoint: 45,
@@ -263,13 +335,14 @@ export async function seedDatabase() {
       supplierIds: [supPack._id],
       averageDailyDemand: 6,
       leadTimeDays: 3,
-      unitOfMeasure: 'Rolls',
+      unitOfMeasure: "Rolls",
     },
     {
       name: 'Hydraulic High-Pressure Hose Assembly (3/8" x 72")',
-      sku: 'HYD-HSE-007',
-      description: 'Wire braid synthetic rubber hydraulic line rated to 4000 PSI.',
-      category: 'Hydraulics',
+      sku: "HYD-HSE-007",
+      description:
+        "Wire braid synthetic rubber hydraulic line rated to 4000 PSI.",
+      category: "Hydraulics",
       currentStock: 11,
       minimumStock: 10,
       reorderPoint: 22,
@@ -279,15 +352,16 @@ export async function seedDatabase() {
       supplierIds: [supApex._id],
       averageDailyDemand: 2.5,
       leadTimeDays: 4,
-      unitOfMeasure: 'Units',
+      unitOfMeasure: "Units",
     },
 
     // MODERATE / MEDIUM RISKS
     {
-      name: 'ANSI Class 2 High-Visibility Safety Vest (Zipper)',
-      sku: 'PPE-VST-008',
-      description: 'Breathable neon yellow mesh with 2-inch silver reflective strips.',
-      category: 'Safety & PPE',
+      name: "ANSI Class 2 High-Visibility Safety Vest (Zipper)",
+      sku: "PPE-VST-008",
+      description:
+        "Breathable neon yellow mesh with 2-inch silver reflective strips.",
+      category: "Safety & PPE",
       currentStock: 65,
       minimumStock: 30,
       reorderPoint: 55,
@@ -297,13 +371,13 @@ export async function seedDatabase() {
       supplierIds: [supSafety._id],
       averageDailyDemand: 5,
       leadTimeDays: 2,
-      unitOfMeasure: 'Units',
+      unitOfMeasure: "Units",
     },
     {
-      name: 'Heavy Duty Hand Stretch Wrap Film (80 Gauge 18x1500)',
-      sku: 'PKG-STW-009',
-      description: 'Cast puncture-resistant palletizing cling wrap.',
-      category: 'Packaging & Shipping',
+      name: "Heavy Duty Hand Stretch Wrap Film (80 Gauge 18x1500)",
+      sku: "PKG-STW-009",
+      description: "Cast puncture-resistant palletizing cling wrap.",
+      category: "Packaging & Shipping",
       currentStock: 75,
       minimumStock: 40,
       reorderPoint: 70,
@@ -313,13 +387,14 @@ export async function seedDatabase() {
       supplierIds: [supPack._id],
       averageDailyDemand: 7,
       leadTimeDays: 3,
-      unitOfMeasure: 'Rolls',
+      unitOfMeasure: "Rolls",
     },
     {
-      name: 'Stainless Steel Socket Cap Screws M8x30mm (100pk)',
-      sku: 'FST-SCR-010',
-      description: 'Corrosion resistant 304 stainless steel Allen head machine bolts.',
-      category: 'Industrial Hardware',
+      name: "Stainless Steel Socket Cap Screws M8x30mm (100pk)",
+      sku: "FST-SCR-010",
+      description:
+        "Corrosion resistant 304 stainless steel Allen head machine bolts.",
+      category: "Industrial Hardware",
       currentStock: 48,
       minimumStock: 25,
       reorderPoint: 45,
@@ -329,15 +404,15 @@ export async function seedDatabase() {
       supplierIds: [supApex._id],
       averageDailyDemand: 4,
       leadTimeDays: 4,
-      unitOfMeasure: 'Packs',
+      unitOfMeasure: "Packs",
     },
 
     // HEALTHY / OPTIMAL INVENTORY
     {
-      name: 'Corrugated Shipping Box 12x12x12 (ECT-32)',
-      sku: 'PKG-BOX-011',
-      description: 'Standard single wall cubic corrugated shipping cartons.',
-      category: 'Packaging & Shipping',
+      name: "Corrugated Shipping Box 12x12x12 (ECT-32)",
+      sku: "PKG-BOX-011",
+      description: "Standard single wall cubic corrugated shipping cartons.",
+      category: "Packaging & Shipping",
       currentStock: 520,
       minimumStock: 100,
       reorderPoint: 200,
@@ -347,13 +422,13 @@ export async function seedDatabase() {
       supplierIds: [supPack._id],
       averageDailyDemand: 15,
       leadTimeDays: 3,
-      unitOfMeasure: 'Bundles (25ct)',
+      unitOfMeasure: "Bundles (25ct)",
     },
     {
-      name: 'Industrial Heavy Duty Hand Truck / Dolly (800 lb)',
-      sku: 'MHL-TRK-012',
-      description: 'Tubular steel convertible hand truck with pneumatic tires.',
-      category: 'Material Handling',
+      name: "Industrial Heavy Duty Hand Truck / Dolly (800 lb)",
+      sku: "MHL-TRK-012",
+      description: "Tubular steel convertible hand truck with pneumatic tires.",
+      category: "Material Handling",
       currentStock: 32,
       minimumStock: 10,
       reorderPoint: 15,
@@ -363,13 +438,13 @@ export async function seedDatabase() {
       supplierIds: [supPack._id],
       averageDailyDemand: 0.8,
       leadTimeDays: 3,
-      unitOfMeasure: 'Units',
+      unitOfMeasure: "Units",
     },
     {
-      name: 'Optical Barcode Scan Engine (1D/2D QR Engine)',
-      sku: 'AUT-BCS-013',
-      description: 'Embedded imaging sensor with high-density barcode reading.',
-      category: 'Electronics & Sensors',
+      name: "Optical Barcode Scan Engine (1D/2D QR Engine)",
+      sku: "AUT-BCS-013",
+      description: "Embedded imaging sensor with high-density barcode reading.",
+      category: "Electronics & Sensors",
       currentStock: 85,
       minimumStock: 20,
       reorderPoint: 35,
@@ -379,13 +454,13 @@ export async function seedDatabase() {
       supplierIds: [supSensors._id],
       averageDailyDemand: 1.5,
       leadTimeDays: 7,
-      unitOfMeasure: 'Units',
+      unitOfMeasure: "Units",
     },
     {
-      name: 'OSHA Approved First Aid & Burn Kit (25-Person)',
-      sku: 'PPE-AID-014',
-      description: 'Wall-mountable emergency medical response station kit.',
-      category: 'Safety & PPE',
+      name: "OSHA Approved First Aid & Burn Kit (25-Person)",
+      sku: "PPE-AID-014",
+      description: "Wall-mountable emergency medical response station kit.",
+      category: "Safety & PPE",
       currentStock: 45,
       minimumStock: 15,
       reorderPoint: 25,
@@ -395,13 +470,13 @@ export async function seedDatabase() {
       supplierIds: [supSafety._id],
       averageDailyDemand: 0.5,
       leadTimeDays: 2,
-      unitOfMeasure: 'Kits',
+      unitOfMeasure: "Kits",
     },
     {
-      name: 'Conveyor Roller Bearing Sprocket #40 (17 Tooth)',
-      sku: 'BRG-SPR-015',
-      description: 'Precision hardened steel chain drive roller sprocket.',
-      category: 'Bearings & Motion',
+      name: "Conveyor Roller Bearing Sprocket #40 (17 Tooth)",
+      sku: "BRG-SPR-015",
+      description: "Precision hardened steel chain drive roller sprocket.",
+      category: "Bearings & Motion",
       currentStock: 110,
       minimumStock: 30,
       reorderPoint: 50,
@@ -411,13 +486,14 @@ export async function seedDatabase() {
       supplierIds: [supApex._id],
       averageDailyDemand: 2.2,
       leadTimeDays: 4,
-      unitOfMeasure: 'Units',
+      unitOfMeasure: "Units",
     },
     {
-      name: 'Biodegradable Packing Peanuts (14 cu ft Bag)',
-      sku: 'PKG-PNT-016',
-      description: 'Organic cornstarch based antistatic loose fill void packaging.',
-      category: 'Packaging & Shipping',
+      name: "Biodegradable Packing Peanuts (14 cu ft Bag)",
+      sku: "PKG-PNT-016",
+      description:
+        "Organic cornstarch based antistatic loose fill void packaging.",
+      category: "Packaging & Shipping",
       currentStock: 180,
       minimumStock: 50,
       reorderPoint: 90,
@@ -427,13 +503,14 @@ export async function seedDatabase() {
       supplierIds: [supPack._id],
       averageDailyDemand: 4.5,
       leadTimeDays: 3,
-      unitOfMeasure: 'Bags',
+      unitOfMeasure: "Bags",
     },
     {
-      name: 'Industrial Floor Cleaning Degreaser (5 Gal Drum)',
-      sku: 'SAN-DEG-017',
-      description: 'High alkalinity non-flammable warehouse concrete floor cleaner.',
-      category: 'Sanitation & Maintenance',
+      name: "Industrial Floor Cleaning Degreaser (5 Gal Drum)",
+      sku: "SAN-DEG-017",
+      description:
+        "High alkalinity non-flammable warehouse concrete floor cleaner.",
+      category: "Sanitation & Maintenance",
       currentStock: 60,
       minimumStock: 15,
       reorderPoint: 30,
@@ -443,13 +520,14 @@ export async function seedDatabase() {
       supplierIds: [supSafety._id],
       averageDailyDemand: 1.1,
       leadTimeDays: 2,
-      unitOfMeasure: 'Drums',
+      unitOfMeasure: "Drums",
     },
     {
-      name: 'Heavy Duty Linear Rail Guide & Carriage (1000mm)',
-      sku: 'AUT-LIN-018',
-      description: 'Pre-drilled alloy steel CNC automation linear motion guide.',
-      category: 'Automation & Robotics',
+      name: "Heavy Duty Linear Rail Guide & Carriage (1000mm)",
+      sku: "AUT-LIN-018",
+      description:
+        "Pre-drilled alloy steel CNC automation linear motion guide.",
+      category: "Automation & Robotics",
       currentStock: 40,
       minimumStock: 12,
       reorderPoint: 20,
@@ -459,13 +537,14 @@ export async function seedDatabase() {
       supplierIds: [supSensors._id],
       averageDailyDemand: 0.9,
       leadTimeDays: 7,
-      unitOfMeasure: 'Assemblies',
+      unitOfMeasure: "Assemblies",
     },
     {
       name: 'Polypropylene Poly Strapping (1/2" x 9000ft)',
-      sku: 'PKG-STR-019',
-      description: 'Heavy duty machine and manual grade box binding strap coil.',
-      category: 'Packaging & Shipping',
+      sku: "PKG-STR-019",
+      description:
+        "Heavy duty machine and manual grade box binding strap coil.",
+      category: "Packaging & Shipping",
       currentStock: 88,
       minimumStock: 25,
       reorderPoint: 45,
@@ -475,13 +554,13 @@ export async function seedDatabase() {
       supplierIds: [supPack._id],
       averageDailyDemand: 2.0,
       leadTimeDays: 3,
-      unitOfMeasure: 'Coils',
+      unitOfMeasure: "Coils",
     },
     {
-      name: 'Hydraulic Cylinder Seal Repair Rebuild Kit',
-      sku: 'HYD-KIT-020',
-      description: 'Complete O-ring, wiper, and rod seal replacement kit.',
-      category: 'Hydraulics',
+      name: "Hydraulic Cylinder Seal Repair Rebuild Kit",
+      sku: "HYD-KIT-020",
+      description: "Complete O-ring, wiper, and rod seal replacement kit.",
+      category: "Hydraulics",
       currentStock: 55,
       minimumStock: 15,
       reorderPoint: 25,
@@ -491,7 +570,7 @@ export async function seedDatabase() {
       supplierIds: [supApex._id],
       averageDailyDemand: 1.2,
       leadTimeDays: 4,
-      unitOfMeasure: 'Kits',
+      unitOfMeasure: "Kits",
     },
   ];
 
@@ -499,7 +578,9 @@ export async function seedDatabase() {
   console.log(`Created ${createdProducts.length} warehouse products.`);
 
   // 5. Seed 45 Days of Historical Demand Data for each product with seasonal multipliers
-  console.log('Generating 45 days of rich historical demand curves for each product...');
+  console.log(
+    "Generating 45 days of rich historical demand curves for each product...",
+  );
   const demandRecords: any[] = [];
   const movements: any[] = [];
   const today = new Date();
@@ -524,7 +605,7 @@ export async function seedDatabase() {
 
       const calculatedQty = Math.max(
         1,
-        Math.round(baseDemand * dayMultiplier * seasonalWave * randomNoise)
+        Math.round(baseDemand * dayMultiplier * seasonalWave * randomNoise),
       );
 
       demandRecords.push({
@@ -542,14 +623,14 @@ export async function seedDatabase() {
         movements.push({
           productId: product._id,
           warehouseId: product.warehouseId,
-          movementType: 'OUTBOUND',
+          movementType: "OUTBOUND",
           quantity: calculatedQty,
           previousStock: product.currentStock + calculatedQty,
           newStock: product.currentStock,
           reference: `ORD-OUT-${formatDateRef(recordDate)}-${product.sku.substring(0, 7)}`,
           timestamp: recordDate,
           performedBy: staffUser._id,
-          notes: 'Customer dispatch shipment',
+          notes: "Customer dispatch shipment",
         });
       }
     }
@@ -560,14 +641,14 @@ export async function seedDatabase() {
   console.log(`Inserted ${demandRecords.length} historical demand rows.`);
 
   // 6. Seed Sample Purchase Orders in Various Workflow States
-  console.log('Seeding sample purchase orders across all workflow states...');
+  console.log("Seeding sample purchase orders across all workflow states...");
   const criticalProd = createdProducts[0]; // Bubble Mailers
   const highProd = createdProducts[4]; // Optical Sensor
   const bearingProd = createdProducts[2]; // Bearings
 
   const samplePOs = [
     {
-      purchaseOrderNumber: 'PO-2026-00001',
+      purchaseOrderNumber: "PO-2026-00001",
       supplierId: supPack._id,
       items: [
         {
@@ -580,14 +661,15 @@ export async function seedDatabase() {
         },
       ],
       totalAmount: 102.0,
-      status: 'PENDING_APPROVAL',
+      status: "PENDING_APPROVAL",
       createdBy: staffUser._id,
       expectedDeliveryDate: addDays(today, supPack.leadTimeDays),
-      notes: 'Urgent restocking for packaging inventory approaching critical stockout.',
+      notes:
+        "Urgent restocking for packaging inventory approaching critical stockout.",
       isAutoRecommended: true,
     },
     {
-      purchaseOrderNumber: 'PO-2026-00002',
+      purchaseOrderNumber: "PO-2026-00002",
       supplierId: supSensors._id,
       items: [
         {
@@ -600,16 +682,17 @@ export async function seedDatabase() {
         },
       ],
       totalAmount: 2125.0,
-      status: 'APPROVED',
+      status: "APPROVED",
       createdBy: staffUser._id,
       approvedBy: managerUser._id,
       approvedAt: subDays(today, 1),
       expectedDeliveryDate: addDays(today, supSensors.leadTimeDays),
-      notes: 'Approved by Warehouse Manager. Ready to be dispatched to supplier.',
+      notes:
+        "Approved by Warehouse Manager. Ready to be dispatched to supplier.",
       isAutoRecommended: true,
     },
     {
-      purchaseOrderNumber: 'PO-2026-00003',
+      purchaseOrderNumber: "PO-2026-00003",
       supplierId: supApex._id,
       items: [
         {
@@ -622,19 +705,19 @@ export async function seedDatabase() {
         },
       ],
       totalAmount: 1120.0,
-      status: 'SUBMITTED',
+      status: "SUBMITTED",
       createdBy: staffUser._id,
       approvedBy: managerUser._id,
       approvedAt: subDays(today, 3),
       submittedAt: subDays(today, 2),
-      supplierSubmissionRef: 'SUP-ACK-M4B7-9941AF',
-      supplierStatus: 'Order acknowledged by Apex Industrial Technologies. In transit.',
+      supplierSubmissionRef: "SUP-ACK-M4B7-9941AF",
+      supplierStatus: "PENDING", // CHANGED: Apex now has a vendor login, so this order waits for the vendor to respond
       expectedDeliveryDate: addDays(today, 2),
-      notes: 'Dispatched to supplier. Expected in 2 business days.',
+      notes: "Dispatched to supplier. Expected in 2 business days.",
       isAutoRecommended: true,
     },
     {
-      purchaseOrderNumber: 'PO-2026-00004',
+      purchaseOrderNumber: "PO-2026-00004",
       supplierId: supSafety._id,
       items: [
         {
@@ -647,15 +730,16 @@ export async function seedDatabase() {
         },
       ],
       totalAmount: 870.0,
-      status: 'RECEIVED',
+      status: "RECEIVED",
       createdBy: staffUser._id,
       approvedBy: adminUser._id,
       approvedAt: subDays(today, 6),
       submittedAt: subDays(today, 5),
       expectedDeliveryDate: subDays(today, 2),
-      supplierSubmissionRef: 'SUP-ACK-K8Y2-7711BC',
-      supplierStatus: 'Fulfillment completed and delivered.',
-      notes: 'Full shipment received and staged into storage rack 4B.',
+      supplierSubmissionRef: "SUP-ACK-K8Y2-7711BC",
+      supplierStatus: "SHIPPED", // CHANGED
+      shippedAt: subDays(today, 3), // NEW
+      notes: "Full shipment received and staged into storage rack 4B.",
       isAutoRecommended: false,
     },
   ];
@@ -666,21 +750,21 @@ export async function seedDatabase() {
   for (const po of createdPOs) {
     await ApprovalLog.create({
       purchaseOrderId: po._id,
-      action: 'CREATED',
+      action: "CREATED",
       performedBy: po.createdBy,
-      comments: 'Initial PO generation',
-      newStatus: 'DRAFT',
+      comments: "Initial PO generation",
+      newStatus: "DRAFT",
       timestamp: subDays(today, 4),
     });
 
-    if (po.status === 'PENDING_APPROVAL') {
+    if (po.status === "PENDING_APPROVAL") {
       await ApprovalLog.create({
         purchaseOrderId: po._id,
-        action: 'SUBMITTED_FOR_APPROVAL',
+        action: "SUBMITTED_FOR_APPROVAL",
         performedBy: po.createdBy,
-        comments: 'Sent to manager for approval',
-        previousStatus: 'DRAFT',
-        newStatus: 'PENDING_APPROVAL',
+        comments: "Sent to manager for approval",
+        previousStatus: "DRAFT",
+        newStatus: "PENDING_APPROVAL",
         timestamp: subDays(today, 2),
       });
     }
@@ -688,35 +772,37 @@ export async function seedDatabase() {
     if (po.approvedBy) {
       await ApprovalLog.create({
         purchaseOrderId: po._id,
-        action: 'APPROVED',
+        action: "APPROVED",
         performedBy: po.approvedBy,
-        comments: 'Authorized by manager',
-        previousStatus: 'PENDING_APPROVAL',
-        newStatus: 'APPROVED',
+        comments: "Authorized by manager",
+        previousStatus: "PENDING_APPROVAL",
+        newStatus: "APPROVED",
         timestamp: po.approvedAt || subDays(today, 1),
       });
     }
 
-    if (po.status === 'SUBMITTED') {
+    if (po.status === "SUBMITTED") {
       await ApprovalLog.create({
         purchaseOrderId: po._id,
-        action: 'SUBMITTED_TO_SUPPLIER',
+        action: "SUBMITTED_TO_SUPPLIER",
         performedBy: po.approvedBy || adminUser._id,
         comments: `Submitted to supplier. Confirmation Ref: ${po.supplierSubmissionRef}`,
-        previousStatus: 'APPROVED',
-        newStatus: 'SUBMITTED',
+        previousStatus: "APPROVED",
+        newStatus: "SUBMITTED",
         timestamp: po.submittedAt || today,
       });
     }
   }
 
   // 7. Compute Initial Forecasts and Stockout Risk Models
-  console.log('Executing initial automated forecasting and stockout risk analysis...');
+  console.log(
+    "Executing initial automated forecasting and stockout risk analysis...",
+  );
   for (const prod of createdProducts) {
     await ForecastingService.generateForecast({
       productId: prod._id.toString(),
       horizonDays: 30,
-      method: 'SEASONAL',
+      method: "SEASONAL",
     });
   }
 
@@ -725,47 +811,64 @@ export async function seedDatabase() {
   // 8. Create sample in-app notifications
   await Notification.create([
     {
-      title: 'CRITICAL Stockout Alert: Nitrile Gloves',
-      message: 'Nitrile Gloves inventory (8 boxes) is critically below safety stock. Depletion expected within 24 hours.',
-      type: 'ALERT',
-      link: '/stockout',
+      title: "CRITICAL Stockout Alert: Nitrile Gloves",
+      message:
+        "Nitrile Gloves inventory (8 boxes) is critically below safety stock. Depletion expected within 24 hours.",
+      type: "ALERT",
+      link: "/stockout",
     },
     {
-      title: 'Action Required: PO-2026-00001 Awaiting Approval',
-      message: 'Urgent restocking order for Poly Bubble Mailers awaiting manager authorization.',
-      type: 'WARNING',
+      title: "Action Required: PO-2026-00001 Awaiting Approval",
+      message:
+        "Urgent restocking order for Poly Bubble Mailers awaiting manager authorization.",
+      type: "WARNING",
       link: `/purchase-orders/${createdPOs[0]._id}`,
     },
     {
-      title: 'Supplier Acknowledgment: PO-2026-00003',
-      message: 'Apex Industrial has confirmed electronic order dispatch. Delivery tracking active.',
-      type: 'SUCCESS',
+      title: "Order Sent to Supplier: PO-2026-00003", // CHANGED
+      message:
+        "PO-2026-00003 was sent to Apex Industrial and is waiting for their response.", // CHANGED
+      type: "SUCCESS",
       link: `/purchase-orders/${createdPOs[2]._id}`,
     },
   ]);
 
-  console.log('--- Database Seeding Completed Successfully! ---');
-  console.log('Sample Demo Credentials for Development:');
-  console.log('1. Admin: admin@warehouse.local / AdminPass123!');
-  console.log('2. Warehouse Manager: manager@warehouse.local / ManagerPass123!');
-  console.log('3. Inventory Staff: staff@warehouse.local / StaffPass123!');
+  console.log("--- Database Seeding Completed Successfully! ---");
+  console.log("Sample Demo Credentials for Development:");
+  console.log("1. Admin: admin@warehouse.local / AdminPass123!");
+  console.log(
+    "2. Warehouse Manager: manager@warehouse.local / ManagerPass123!",
+  );
+  console.log("3. Inventory Staff: staff@warehouse.local / StaffPass123!");
+  console.log(
+    "4. Super Admin: superadmin@warehouse.local / SuperAdminPass123! (or SEED_SUPERADMIN_PASSWORD)",
+  ); // NEW
+  console.log(
+    "5. Vendor (Apex Industrial): vendor@warehouse.local / VendorPass123!",
+  ); // NEW
+  console.log(
+    "6. Customer (Northwind Retail Group): customer@warehouse.local / CustomerPass123!",
+  ); // NEW
 }
 
 function formatDateRef(d: Date): string {
-  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
   return `${month}${day}`;
 }
 
 // Allow direct CLI execution: tsx src/jobs/seed.ts
-if (process.argv[1]?.endsWith('seed.ts') || process.argv[1]?.endsWith('seed.js')) {
+if (
+  process.argv[1]?.endsWith("seed.ts") ||
+  process.argv[1]?.endsWith("seed.js")
+) {
   seedDatabase()
     .then(async () => {
       await disconnectDB();
       process.exit(0);
     })
     .catch(async (err) => {
-      console.error('Seeding error:', err);
+      console.error("Seeding error:", err);
       await disconnectDB();
       process.exit(1);
     });

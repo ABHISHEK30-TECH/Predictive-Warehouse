@@ -1,13 +1,14 @@
-import mongoose from 'mongoose';
-import { Product } from '../models/Product.js';
-import { Supplier, ISupplier } from '../models/Supplier.js';
-import { PurchaseOrder, IPurchaseOrder } from '../models/PurchaseOrder.js';
-import { StockoutRisk } from '../models/StockoutRisk.js';
-import { ApprovalLog } from '../models/ApprovalLog.js';
-import { Notification } from '../models/Notification.js';
-import { User } from '../models/User.js';
-import { StockoutService } from './stockoutService.js';
-import { addDays } from 'date-fns';
+import mongoose from "mongoose";
+import { Product } from "../models/Product.js";
+import { Supplier, ISupplier } from "../models/Supplier.js";
+import { PurchaseOrder, IPurchaseOrder } from "../models/PurchaseOrder.js";
+import { StockoutRisk } from "../models/StockoutRisk.js";
+import { ApprovalLog } from "../models/ApprovalLog.js";
+import { Notification } from "../models/Notification.js";
+import { User } from "../models/User.js";
+import { StockoutService } from "./stockoutService.js";
+import { addDays } from "date-fns";
+import { ADMIN_ROLES } from "../middleware/auth.js";
 
 export interface ReorderRecommendation {
   productId: string;
@@ -32,20 +33,28 @@ export class ReorderingService {
   /**
    * Scans inventory for products at risk and prepares purchase order recommendations
    */
-  public static async generateReorderRecommendations(): Promise<ReorderRecommendation[]> {
+  public static async generateReorderRecommendations(): Promise<
+    ReorderRecommendation[]
+  > {
     // Refresh risk evaluations
     const risks = await StockoutService.evaluateAllProducts();
     const recommendations: ReorderRecommendation[] = [];
 
     for (const risk of risks) {
-      if (risk.riskLevel === 'CRITICAL' || risk.riskLevel === 'HIGH' || risk.recommendedReorderQuantity > 0) {
-        const product = await Product.findById(risk.productId).populate('supplierIds');
+      if (
+        risk.riskLevel === "CRITICAL" ||
+        risk.riskLevel === "HIGH" ||
+        risk.recommendedReorderQuantity > 0
+      ) {
+        const product = await Product.findById(risk.productId).populate(
+          "supplierIds",
+        );
         if (!product) continue;
 
         // Check if an active open draft or pending approval PO already exists containing this product
         const existingActivePO = await PurchaseOrder.findOne({
-          'items.productId': product._id,
-          status: { $in: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED'] },
+          "items.productId": product._id,
+          status: { $in: ["DRAFT", "PENDING_APPROVAL", "APPROVED"] },
         });
 
         if (existingActivePO) {
@@ -65,7 +74,7 @@ export class ReorderingService {
 
         if (eligibleSuppliers.length === 0) {
           console.warn(
-            `[Reordering] No pre-approved active supplier found for product ${product.sku} (${product.category})`
+            `[Reordering] No pre-approved active supplier found for product ${product.sku} (${product.category})`,
           );
           continue;
         }
@@ -78,8 +87,12 @@ export class ReorderingService {
         });
 
         const bestSupplier = sortedSuppliers[0];
-        const quantity = Math.max(risk.recommendedReorderQuantity, product.safetyStock * 2);
-        const estimatedCost = Math.round(quantity * product.unitPrice * 100) / 100;
+        const quantity = Math.max(
+          risk.recommendedReorderQuantity,
+          product.safetyStock * 2,
+        );
+        const estimatedCost =
+          Math.round(quantity * product.unitPrice * 100) / 100;
 
         recommendations.push({
           productId: product._id.toString(),
@@ -108,13 +121,18 @@ export class ReorderingService {
   /**
    * Automatically creates draft Purchase Orders from recommended replenishment candidates
    */
-  public static async autoCreateDraftPurchaseOrders(systemUserId?: string): Promise<IPurchaseOrder[]> {
+  public static async autoCreateDraftPurchaseOrders(
+    systemUserId?: string,
+  ): Promise<IPurchaseOrder[]> {
     const recommendations = await this.generateReorderRecommendations();
     const createdPOs: IPurchaseOrder[] = [];
 
     let fallbackUser = systemUserId ? await User.findById(systemUserId) : null;
     if (!fallbackUser) {
-      fallbackUser = await User.findOne({ role: 'Admin' });
+      fallbackUser = await User.findOne({
+        role: { $in: ADMIN_ROLES },
+        status: { $nin: ["Pending", "Suspended"] },
+      });
     }
 
     const creatorId = fallbackUser?._id || new mongoose.Types.ObjectId();
@@ -122,8 +140,8 @@ export class ReorderingService {
     for (const rec of recommendations) {
       // Re-verify no duplicate was created concurrently
       const duplicateCheck = await PurchaseOrder.findOne({
-        'items.productId': rec.productId,
-        status: { $in: ['DRAFT', 'PENDING_APPROVAL'] },
+        "items.productId": rec.productId,
+        status: { $in: ["DRAFT", "PENDING_APPROVAL"] },
       });
 
       if (duplicateCheck) continue;
@@ -132,8 +150,11 @@ export class ReorderingService {
       if (!product) continue;
 
       const poCount = await PurchaseOrder.countDocuments();
-      const poNumber = `PO-${new Date().getFullYear()}-${String(poCount + 1).padStart(5, '0')}`;
-      const deliveryDate = addDays(new Date(), rec.selectedSupplier.leadTimeDays);
+      const poNumber = `PO-${new Date().getFullYear()}-${String(poCount + 1).padStart(5, "0")}`;
+      const deliveryDate = addDays(
+        new Date(),
+        rec.selectedSupplier.leadTimeDays,
+      );
 
       const po = await PurchaseOrder.create({
         purchaseOrderNumber: poNumber,
@@ -149,7 +170,7 @@ export class ReorderingService {
           },
         ],
         totalAmount: rec.estimatedCost,
-        status: 'DRAFT',
+        status: "DRAFT",
         createdBy: creatorId,
         expectedDeliveryDate: deliveryDate,
         notes: `System-generated replenishment recommendation based on ${rec.riskLevel} stockout risk. ${rec.reason}`,
@@ -159,17 +180,17 @@ export class ReorderingService {
       // Audit Log
       await ApprovalLog.create({
         purchaseOrderId: po._id,
-        action: 'CREATED',
+        action: "CREATED",
         performedBy: creatorId,
         comments: `Automated reordering engine generated draft recommendation for SKU: ${product.sku}`,
-        newStatus: 'DRAFT',
+        newStatus: "DRAFT",
       });
 
       // In-App Notification
       await Notification.create({
         title: `Draft PO Created: ${po.purchaseOrderNumber}`,
         message: `Replenishment recommendation generated for ${product.name} (${rec.recommendedQuantity} units). Ready for manager review.`,
-        type: 'INFO',
+        type: "INFO",
         link: `/purchase-orders/${po._id}`,
       });
 

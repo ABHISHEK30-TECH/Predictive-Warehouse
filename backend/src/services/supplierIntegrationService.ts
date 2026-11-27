@@ -66,12 +66,12 @@ export class MockSupplierAdapter implements ISupplierAdapter {
     const estimatedFulfillmentDate = new Date();
     estimatedFulfillmentDate.setDate(estimatedFulfillmentDate.getDate() + fulfillmentDays);
 
-    return {
+        return {
       success: true,
       externalReference: externalRef,
       supplierConfirmationId: confirmationId,
       estimatedFulfillmentDate,
-      statusMessage: `Order accepted by ${supplier.name}. Electronic confirmation #${confirmationId} issued. Delivery expected within ${fulfillmentDays} business days.`,
+      statusMessage: `Order delivered to ${supplier.name}. Electronic reference #${confirmationId} issued. Delivery expected within ${fulfillmentDays} business days.`, // CHANGED: no longer says "accepted"
     };
   }
 }

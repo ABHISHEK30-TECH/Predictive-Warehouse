@@ -6,6 +6,11 @@ import morgan from "morgan";
 import { ENV } from "./config/env.js";
 import { connectDB, disconnectDB } from "./config/db.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import {
+  authenticate,
+  authorizeRoles,
+  INTERNAL_ROLES,
+} from "./middleware/auth.js"; 
 
 import authRoutes from "./routes/authRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
@@ -18,7 +23,10 @@ import dashboardRoutes from "./routes/dashboardRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import warehouseRoutes from "./routes/warehouseRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
-import onboardingRoutes from "./routes/onboarding";
+import onboardingRoutes from "./routes/onboarding.js"; 
+import adminRoutes from "./routes/adminRoutes.js";
+import vendorRoutes from "./routes/vendorRoutes.js";
+import customerRoutes from "./routes/customerRoutes.js";
 
 const app = express();
 
@@ -67,19 +75,26 @@ app.get("/", (_req, res) => {
   });
 });
 
-// API Routes
+// Public routes (no login needed)
 app.use("/api/auth", authRoutes);
-app.use("/api/products", productRoutes);
-app.use("/api/inventory", inventoryRoutes);
-app.use("/api/forecasts", forecastingRoutes);
-app.use("/api/stockout", stockoutRoutes);
-app.use("/api/suppliers", supplierRoutes);
-app.use("/api/purchase-orders", purchaseOrderRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/reports", reportRoutes);
-app.use("/api/warehouses", warehouseRoutes);
-app.use("/api/notifications", notificationRoutes);
 app.use("/api/onboarding", onboardingRoutes);
+
+// Role checks inside each route file still apply on top of this.
+const internalOnly = [authenticate, authorizeRoles(...INTERNAL_ROLES)]; 
+app.use("/api/products", internalOnly, productRoutes);
+app.use("/api/inventory", internalOnly, inventoryRoutes);
+app.use("/api/forecasts", internalOnly, forecastingRoutes);
+app.use("/api/stockout", internalOnly, stockoutRoutes);
+app.use("/api/suppliers", internalOnly, supplierRoutes);
+app.use("/api/purchase-orders", internalOnly, purchaseOrderRoutes);
+app.use("/api/dashboard", internalOnly, dashboardRoutes);
+app.use("/api/reports", internalOnly, reportRoutes);
+app.use("/api/warehouses", internalOnly, warehouseRoutes);
+app.use("/api/notifications", internalOnly, notificationRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/vendor", vendorRoutes);
+app.use("/api/customer", customerRoutes);
+
 
 // 404 handler
 app.use((req, res) => {

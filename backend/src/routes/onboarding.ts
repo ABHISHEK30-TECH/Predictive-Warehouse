@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import OnboardingRequest from "../models/OnboardingRequest";
+import OnboardingRequest from "../models/OnboardingRequest.js";
 
 const router = Router();
 
@@ -34,24 +34,30 @@ router.post("/", async (req: Request, res: Response) => {
     const errors: string[] = [];
     if (!data.companyName) errors.push("companyName");
     if (!data.industry) errors.push("industry");
-    if (!Number.isInteger(data.warehouses) || data.warehouses < 1) errors.push("warehouses");
+    if (!Number.isInteger(data.warehouses) || data.warehouses < 1)
+      errors.push("warehouses");
     if (!data.country) errors.push("country");
     if (!data.fullName) errors.push("fullName");
     if (!EMAIL_RE.test(data.email)) errors.push("email");
-    if (data.phone && data.phone.replace(/\D/g, "").length < 7) errors.push("phone");
+    if (data.phone && data.phone.replace(/\D/g, "").length < 7)
+      errors.push("phone");
     if (!data.role) errors.push("role");
     if (!data.skuCount) errors.push("skuCount");
     if (!data.reorderPolicy) errors.push("reorderPolicy");
 
     if (errors.length > 0) {
-      return res.status(400).json({ message: "Some fields are missing or invalid.", errors });
+      return res
+        .status(400)
+        .json({ message: "Some fields are missing or invalid.", errors });
     }
 
     const saved = await OnboardingRequest.create(data);
     return res.status(201).json({ ok: true, id: saved._id });
   } catch (err) {
     console.error("Onboarding request failed:", err);
-    return res.status(500).json({ message: "Could not save your request. Please try again." });
+    return res
+      .status(500)
+      .json({ message: "Could not save your request. Please try again." });
   }
 });
 
